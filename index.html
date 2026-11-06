@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pallet Finder</title>
+  <title>Pallet Finder v2</title>
   <style>
     :root { color-scheme: light; font-family: Arial, sans-serif; color: #172033; background: #f4f7fb; }
     body { margin: 0; padding: 24px; }
@@ -12,7 +12,7 @@
     .hint, #status { color: #53627a; }
     .panel, .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px #17203314; }
     .panel { padding: 20px; margin: 18px 0; }
-    .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+    .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: end; }
     label { display: grid; gap: 7px; font-weight: 600; }
     input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #b9c5d8; border-radius: 8px; font-size: 16px; }
     button { padding: 12px 18px; color: white; background: #0f6cbd; border: 0; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; }
@@ -28,12 +28,15 @@
     th, td { padding: 11px; border-bottom: 1px solid #dce3ee; text-align: left; vertical-align: top; }
     th { background: #edf4fc; }
     .table-wrap { overflow-x: auto; }
+    #scannerPanel { margin-top: 16px; }
+    #reader { max-width: 420px; margin: 12px auto; overflow: hidden; border-radius: 8px; }
+    #reader video { width: 100% !important; }
     @media (max-width: 650px) { body { padding: 14px; } .controls { grid-template-columns: 1fr; } .summary { grid-template-columns: 1fr 1fr; } .total { grid-column: span 2; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>Pallet Finder</h1>
+    <h1>Pallet Finder v2</h1>
     <p class="hint">Wczytaj eksport CSV, a następnie zeskanuj lub wpisz kod towaru. Wyszukiwanie dopasowuje pełny kod.</p>
     <section class="panel">
       <label>Plik CSV
@@ -45,6 +48,12 @@
           <input id="codeInput" type="text" autocomplete="off" placeholder="np. 12083-1997" disabled>
         </label>
         <button id="searchButton" type="button" disabled>Szukaj</button>
+        <button id="scanButton" type="button" disabled>Skanuj kod kreskowy</button>
+      </div>
+      <div id="scannerPanel" class="hidden">
+        <p class="hint">Skieruj aparat na kod kreskowy. Po odczytaniu kod zostanie wyszukany automatycznie.</p>
+        <div id="reader"></div>
+        <button id="stopScanButton" type="button">Zatrzymaj skanowanie</button>
       </div>
     </section>
     <section id="result" class="hidden" aria-live="polite">
@@ -64,16 +73,23 @@
       </div>
     </section>
   </main>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
     (() => {
       const fileInput = document.getElementById('fileInput');
       const codeInput = document.getElementById('codeInput');
       const searchButton = document.getElementById('searchButton');
+      const scanButton = document.getElementById('scanButton');
+      const stopScanButton = document.getElementById('stopScanButton');
+      const scannerPanel = document.getElementById('scannerPanel');
+      const readerElement = document.getElementById('reader');
       const status = document.getElementById('status');
       const result = document.getElementById('result');
       const resultBody = document.getElementById('resultBody');
       const resultHeading = document.getElementById('resultHeading');
       const records = [];
+      let scanner = null;
+      let cameraActive = false;
       const aliases = {
         code: ['kod towaru', 'kod artykulu', 'kod artykułu', 'indeks', 'sku'],
         quantity: ['fizyczne dostepne', 'fizyczne dostępne'],
@@ -128,7 +144,7 @@
           if (columns.code < 0 || columns.quantity < 0) return setStatus('Brakuje kolumny „Kod towaru” lub „Fizyczne dostępne”.', true);
           records.length = 0;
           rows.slice(1).forEach(row => records.push({ code: valueAt(row, columns.code), quantity: parseQuantity(valueAt(row, columns.quantity)), warehouse: valueAt(row, columns.warehouse), location: valueAt(row, columns.location), batch: valueAt(row, columns.batch), pallet: valueAt(row, columns.pallet) }));
-          codeInput.disabled = false; searchButton.disabled = false; codeInput.focus(); result.classList.add('hidden');
+          codeInput.disabled = false; searchButton.disabled = false; scanButton.disabled = false; codeInput.focus(); result.classList.add('hidden');
           setStatus(`Wczytano ${records.length} rekordów z pliku „${file.name}”.`);
         };
         reader.onerror = () => setStatus('Nie udało się odczytać pliku.', true); reader.readAsArrayBuffer(file);
@@ -149,8 +165,44 @@
         }
         result.classList.remove('hidden'); setStatus(matches.length ? `Znaleziono ${matches.length} pasujących rekordów.` : `Nie znaleziono kodu „${code}”.`);
       }
+      async function stopScanning() {
+        if (scanner && cameraActive) {
+          cameraActive = false;
+          await scanner.stop();
+          await scanner.clear();
+        }
+        scannerPanel.classList.add('hidden');
+      }
+      async function startScanning() {
+        if (!window.Html5Qrcode) { setStatus('Nie udało się załadować modułu skanowania. Sprawdź połączenie z Internetem.', true); return; }
+        if (cameraActive) return;
+        scannerPanel.classList.remove('hidden');
+        scanButton.disabled = true;
+        scanner = new Html5Qrcode('reader');
+        try {
+          await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 280, height: 140 } }, async decodedText => {
+            if (!cameraActive) return;
+            codeInput.value = decodedText;
+            setStatus(`Odczytano kod „${decodedText}”.`);
+            await stopScanning();
+            scanButton.disabled = false;
+            search();
+          }, () => {});
+          cameraActive = true;
+          setStatus('Aparat jest aktywny. Ustaw kod kreskowy w ramce.');
+        } catch (error) {
+          scannerPanel.classList.add('hidden');
+          readerElement.replaceChildren();
+          setStatus('Nie udało się uruchomić aparatu. Zezwól przeglądarce na dostęp do kamery.', true);
+          console.error(error);
+        } finally {
+          if (!cameraActive) scanButton.disabled = false;
+        }
+      }
       fileInput.addEventListener('change', event => { const [file] = event.target.files; if (file) loadFile(file); });
       searchButton.addEventListener('click', search);
+      scanButton.addEventListener('click', startScanning);
+      stopScanButton.addEventListener('click', async () => { await stopScanning(); scanButton.disabled = false; setStatus('Skanowanie zatrzymane.'); });
       codeInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search(); } });
     })();
   </script>
