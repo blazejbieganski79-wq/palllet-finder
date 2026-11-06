@@ -48,7 +48,7 @@
           <input id="codeInput" type="text" autocomplete="off" placeholder="np. 12083-1997" disabled>
         </label>
         <button id="searchButton" type="button" disabled>Szukaj</button>
-        <button id="scanButton" type="button" disabled>Skanuj kod kreskowy</button>
+        <button id="scanButton" type="button">Skanuj kod kreskowy</button>
       </div>
       <div id="scannerPanel" class="hidden">
         <p class="hint">Skieruj aparat na kod kreskowy. Po odczytaniu kod zostanie wyszukany automatycznie.</p>
@@ -90,6 +90,7 @@
       const records = [];
       let scanner = null;
       let cameraActive = false;
+      let dataLoaded = false;
       const aliases = {
         code: ['kod towaru', 'kod artykulu', 'kod artykułu', 'indeks', 'sku'],
         quantity: ['fizyczne dostepne', 'fizyczne dostępne'],
@@ -144,6 +145,7 @@
           if (columns.code < 0 || columns.quantity < 0) return setStatus('Brakuje kolumny „Kod towaru” lub „Fizyczne dostępne”.', true);
           records.length = 0;
           rows.slice(1).forEach(row => records.push({ code: valueAt(row, columns.code), quantity: parseQuantity(valueAt(row, columns.quantity)), warehouse: valueAt(row, columns.warehouse), location: valueAt(row, columns.location), batch: valueAt(row, columns.batch), pallet: valueAt(row, columns.pallet) }));
+          dataLoaded = true;
           codeInput.disabled = false; searchButton.disabled = false; scanButton.disabled = false; codeInput.focus(); result.classList.add('hidden');
           setStatus(`Wczytano ${records.length} rekordów z pliku „${file.name}”.`);
         };
@@ -186,7 +188,8 @@
             setStatus(`Odczytano kod „${decodedText}”.`);
             await stopScanning();
             scanButton.disabled = false;
-            search();
+            if (dataLoaded) search();
+            else setStatus(`Odczytano kod „${decodedText}”. Wczytaj teraz plik CSV, aby zobaczyć lokalizacje.`);
           }, () => {});
           cameraActive = true;
           setStatus('Aparat jest aktywny. Ustaw kod kreskowy w ramce.');
