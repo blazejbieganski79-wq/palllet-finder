@@ -31,8 +31,6 @@
     th { background: #edf4fc; }
     .sort-button { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; cursor: pointer; }
     .sort-button:hover { color: #075d9e; background: transparent; }
-    .keypad { display: grid; grid-template-columns: repeat(3, minmax(56px, 96px)); gap: 8px; max-width: 304px; margin: 16px 0 0; }
-    .keypad button { padding: 12px; }
     .table-wrap { overflow-x: auto; }
     @media (max-width: 650px) { body { padding: 14px; } .controls { grid-template-columns: 1fr; } .summary { grid-template-columns: 1fr 1fr; } .total { grid-column: span 2; } }
   </style>
@@ -48,16 +46,9 @@
       <p id="status" role="status">Wybierz plik CSV.</p>
       <div class="controls">
         <label>Kod towaru
-          <input id="codeInput" type="text" inputmode="numeric" pattern="[0-9-]*" autocomplete="off" placeholder="np. 12083-1997" disabled readonly>
+          <input id="codeInput" type="text" pattern="[0-9-]*" autocomplete="off" placeholder="np. 12083-1997" disabled>
         </label>
         <button id="searchButton" type="button" disabled>Szukaj</button>
-      </div>
-      <div id="codeKeypad" class="keypad hidden" aria-label="Klawiatura kodu towaru">
-        <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
-        <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
-        <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
-        <button type="button" data-key="-">-</button><button type="button" data-key="0">0</button><button type="button" data-key="backspace" aria-label="Usuń ostatni znak">⌫</button>
-        <button type="button" data-key="clear">Wyczyść</button><button type="button" data-key="enter">Enter</button>
       </div>
     </section>
     <section id="result" class="hidden" aria-live="polite">
@@ -89,7 +80,6 @@
       const resultHeading = document.getElementById('resultHeading');
       const routeValue = document.getElementById('routeValue');
       const batchSortButton = document.getElementById('batchSortButton');
-      const codeKeypad = document.getElementById('codeKeypad');
       const records = [];
       let batchSortDirection = 'asc';
       const aliases = {
@@ -162,7 +152,7 @@
           if (columns.code < 0 || columns.quantity < 0) return setStatus('Brakuje kolumny „Kod towaru” lub „Fizyczne dostępne”.', true);
           records.length = 0;
           rows.slice(1).forEach(row => records.push({ code: valueAt(row, columns.code), quantity: parseQuantity(valueAt(row, columns.quantity)), warehouse: valueAt(row, columns.warehouse), location: valueAt(row, columns.location), batch: valueAt(row, columns.batch), pallet: valueAt(row, columns.pallet) }));
-          codeInput.disabled = false; searchButton.disabled = false; codeKeypad.classList.remove('hidden'); result.classList.add('hidden');
+          codeInput.disabled = false; searchButton.disabled = false; codeInput.focus(); result.classList.add('hidden');
           setStatus(`Wczytano ${records.length} rekordów z pliku „${file.name}”.`);
         };
         reader.onerror = () => setStatus('Nie udało się odczytać pliku.', true); reader.readAsArrayBuffer(file);
@@ -191,16 +181,8 @@
       }
       fileInput.addEventListener('change', event => { const [file] = event.target.files; if (file) loadFile(file); });
       searchButton.addEventListener('click', search);
+      codeInput.addEventListener('input', () => { codeInput.value = codeInput.value.replace(/[^0-9-]/g, ''); });
       codeInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search(); } });
-      codeKeypad.addEventListener('click', event => {
-        const button = event.target.closest('button[data-key]');
-        if (!button || codeInput.disabled) return;
-        const { key } = button.dataset;
-        if (key === 'enter') { search(); return; }
-        if (key === 'clear') { codeInput.value = ''; return; }
-        if (key === 'backspace') { codeInput.value = codeInput.value.slice(0, -1); return; }
-        codeInput.value += key;
-      });
       batchSortButton.addEventListener('click', () => {
         batchSortDirection = batchSortDirection === 'asc' ? 'desc' : 'asc';
         updateBatchSortLabel();
