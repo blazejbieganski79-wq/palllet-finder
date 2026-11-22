@@ -29,6 +29,8 @@
     table { border-collapse: collapse; width: 100%; background: white; }
     th, td { padding: 11px; border-bottom: 1px solid #dce3ee; text-align: left; vertical-align: top; }
     th { background: #edf4fc; }
+    .sort-button { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; cursor: pointer; }
+    .sort-button:hover { color: #075d9e; background: transparent; }
     .table-wrap { overflow-x: auto; }
     @media (max-width: 650px) { body { padding: 14px; } .controls { grid-template-columns: 1fr; } .summary { grid-template-columns: 1fr 1fr; } .total { grid-column: span 2; } }
   </style>
@@ -60,7 +62,7 @@
         <h2 id="resultHeading">Lokalizacje</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Magazyn</th><th>Lokalizacja</th><th>Partia</th><th>Paleta</th><th>Fizyczne dostępne</th></tr></thead>
+            <thead><tr><th>Magazyn</th><th>Lokalizacja</th><th><button id="batchSortButton" class="sort-button" type="button" aria-label="Sortuj partie rosnąco">Partia ↑</button></th><th>Paleta</th><th>Fizyczne dostępne</th></tr></thead>
             <tbody id="resultBody"></tbody>
           </table>
         </div>
@@ -77,7 +79,9 @@
       const resultBody = document.getElementById('resultBody');
       const resultHeading = document.getElementById('resultHeading');
       const routeValue = document.getElementById('routeValue');
+      const batchSortButton = document.getElementById('batchSortButton');
       const records = [];
+      let batchSortDirection = 'asc';
       const aliases = {
         code: ['kod towaru', 'kod artykulu', 'kod artykułu', 'indeks', 'sku'],
         quantity: ['fizyczne dostepne', 'fizyczne dostępne'],
@@ -132,6 +136,11 @@
         return '—';
       }
       function setStatus(message, isError = false) { status.textContent = message; status.classList.toggle('error', isError); }
+      function updateBatchSortLabel() {
+        const ascending = batchSortDirection === 'asc';
+        batchSortButton.textContent = `Partia ${ascending ? '↑' : '↓'}`;
+        batchSortButton.setAttribute('aria-label', `Sortuj partie ${ascending ? 'malejąco' : 'rosnąco'}`);
+      }
       function loadFile(file) {
         const reader = new FileReader();
         reader.onload = () => {
@@ -157,7 +166,11 @@
         const routes = [...new Set(matches.map(record => storageRoute(record.location)).filter(route => route !== '—'))];
         routeValue.textContent = routes.length ? routes.join(' • ') : 'Brak przypisanego kierunku';
         resultHeading.textContent = `Lokalizacje dla ${code}`;
-        matches.sort((a, b) => [a.warehouse, a.location, a.batch, a.pallet].join('\u0000').localeCompare([b.warehouse, b.location, b.batch, b.pallet].join('\u0000'), 'pl'));
+        matches.sort((a, b) => {
+          const batchComparison = a.batch.localeCompare(b.batch, 'pl', { numeric: true, sensitivity: 'base' });
+          if (batchComparison !== 0) return batchSortDirection === 'asc' ? batchComparison : -batchComparison;
+          return [a.warehouse, a.location, a.pallet].join('\u0000').localeCompare([b.warehouse, b.location, b.pallet].join('\u0000'), 'pl');
+        });
         for (const record of matches) {
           const row = document.createElement('tr');
           [record.warehouse, record.location, record.batch, record.pallet, formatQuantity(record.quantity)].forEach(value => { const cell = document.createElement('td'); cell.textContent = value || '—'; row.append(cell); });
@@ -167,6 +180,11 @@
       }
       fileInput.addEventListener('change', event => { const [file] = event.target.files; if (file) loadFile(file); });
       searchButton.addEventListener('click', search);
+      batchSortButton.addEventListener('click', () => {
+        batchSortDirection = batchSortDirection === 'asc' ? 'desc' : 'asc';
+        updateBatchSortLabel();
+        if (codeInput.value.trim()) search();
+      });
     })();
   </script>
 </body>
