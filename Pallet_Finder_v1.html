@@ -131,8 +131,9 @@
         if (prefix === 'D') return 'Wilkowicka — odkładcze 4';
         if (prefix === 'E') return 'Wilkowicka — odkładcze 5';
         if (prefix === 'F') return 'Wilkowicka — odkładcze 6';
-        if (['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'R'].includes(prefix)) return 'Ludowa — odkładcze małe/duże';
-        if (['S', 'T'].includes(prefix)) return 'Rampa D4';
+        if (['H', 'I', 'J', 'K'].includes(prefix)) return 'Ludowa — odkładcze duże';
+        if (['L', 'M', 'N', 'O', 'P', 'R'].includes(prefix)) return 'Ludowa — odkładcze małe';
+        if (['S', 'T'].includes(prefix)) return 'Ludowa — odkładcze rampa D4';
         return '—';
       }
       function setStatus(message, isError = false) { status.textContent = message; status.classList.toggle('error', isError); }
