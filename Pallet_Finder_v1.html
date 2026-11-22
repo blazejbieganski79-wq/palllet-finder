@@ -46,7 +46,7 @@
       <p id="status" role="status">Wybierz plik CSV.</p>
       <div class="controls">
         <label>Kod towaru
-          <input id="codeInput" type="text" autocomplete="off" placeholder="np. 12083-1997" disabled>
+          <input id="codeInput" type="text" inputmode="numeric" pattern="[0-9-]*" enterkeyhint="search" autocomplete="off" placeholder="np. 12083-1997" disabled>
         </label>
         <button id="searchButton" type="button" disabled>Szukaj</button>
       </div>
@@ -181,6 +181,8 @@
       }
       fileInput.addEventListener('change', event => { const [file] = event.target.files; if (file) loadFile(file); });
       searchButton.addEventListener('click', search);
+      codeInput.addEventListener('input', () => { codeInput.value = codeInput.value.replace(/[^0-9-]/g, ''); });
+      codeInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search(); } });
       batchSortButton.addEventListener('click', () => {
         batchSortDirection = batchSortDirection === 'asc' ? 'desc' : 'asc';
         updateBatchSortLabel();
